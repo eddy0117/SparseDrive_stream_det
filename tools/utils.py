@@ -306,3 +306,56 @@ def box3d_to_corners(box3d):
     corners = (rot_mat[:, None] @ corners[..., None]).squeeze(axis=-1)
     corners += box3d[:, None, :3]
     return corners
+
+
+# motion planning
+
+def draw_planning_pred(result, top_k=3):
+    
+    # import ipdb; ipdb.set_trace()
+    plan_trajs = result['planning'].cpu().numpy()
+    num_cmd = 3
+    num_mode = plan_trajs.shape[1]
+    plan_trajs_ = np.concatenate((np.zeros((num_cmd, num_mode, 1, 2)), plan_trajs), axis=2)
+    plan_score_ = result['planning_score'].cpu().numpy()
+
+    # cmd = data['gt_ego_fut_cmd'].argmax()
+    result = []
+    for cmd in range(3):
+        plan_trajs = plan_trajs_[cmd]
+        plan_score = plan_score_[cmd]
+
+        sorted_ind = np.argsort(plan_score)[::-1]
+      
+        sorted_traj = plan_trajs[sorted_ind, :, :2]
+        sorted_score = plan_score[sorted_ind]
+        norm_score = np.exp(sorted_score[0])
+        
+        for j in range(top_k - 1, -1, -1):
+            viz_traj = sorted_traj[j]
+            traj_score = np.exp(sorted_score[j]) / norm_score
+        result.append(render_traj(viz_traj, traj_score=traj_score,
+                        colormap='autumn', dot_size=50))
+    return result
+
+def render_traj(
+    future_traj, 
+    traj_score=1, 
+    colormap='winter', 
+    points_per_step=20, 
+    dot_size=25
+):
+    total_steps = (len(future_traj) - 1) * points_per_step + 1
+    # dot_colors = matplotlib.colormaps[colormap](
+    #     np.linspace(0, 1, total_steps))[:, :3]
+    # dot_colors = dot_colors * traj_score + \
+    #     (1 - traj_score) * np.ones_like(dot_colors)
+    total_xy = np.zeros((total_steps, 2))
+    for i in range(total_steps - 1):
+        unit_vec = future_traj[i // points_per_step +
+                                1] - future_traj[i // points_per_step]
+        total_xy[i] = (i / points_per_step - i // points_per_step) * \
+            unit_vec + future_traj[i // points_per_step]
+    total_xy[-1] = future_traj[-1]
+
+    return total_xy

@@ -46,8 +46,8 @@ SCORE_THRESH = 0.3
 
 MAP_SCORE_THRESH = 0.3
 
-# VERSION = 'v1.0-trainval'
-VERSION = 'v1.0-mini'
+VERSION = 'v1.0-trainval'
+# VERSION = 'v1.0-mini'
 
 MAP_SIZE = 682
 
@@ -71,7 +71,7 @@ def main():
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
 
     scene_list = ['scene-0103', 'scene-0916']
-    # scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
+    scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
     # scene_list = ['scene-0061', 'scene-0553', 'scene-0655', 'scene-0757', 'scene-0796', 'scene-1077', 'scene-1094', 'scene-1100']
     
     cams = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT']
@@ -370,7 +370,8 @@ def main():
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
                         'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),
-                        'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda')
+                        'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
+                        'gt_ego_fut_cmd' : torch.Tensor([np.array([0, 0, 1])]).to('cuda')
                         }
             
             with torch.no_grad():
@@ -387,6 +388,9 @@ def main():
 
             result = output[0]['img_bbox']
             bboxes = result['boxes_3d']
+
+            # 處理 3D bboxes
+
             for i in range(result['labels_3d'].shape[0]):
                 score = result['scores_3d'][i]
                 if score < SCORE_THRESH: 
@@ -416,7 +420,7 @@ def main():
                                  'ang' : angle - 90})
                 
                 
-
+            # 處理 vector map
             
             for i in range(result['scores'].shape[0]):
                 score = result['scores'][i]
@@ -444,11 +448,22 @@ def main():
                 data_dot.append({'x' : pts[:, 0].tolist(), 
                                  'y' : pts[:, 1].tolist(), 
                                  'cls' : int(result['labels'][i])}) # x, y, class
+
+
+            # 處理 motion planning
                 
-                # steering = can_list[idx]['steering']
-                # speed = can_list[idx]['vehicle_speed']
-                steering = 0
-                speed = 0
+            traj_all = draw_planning_pred(result)
+
+            traj = np.mean(traj_all, axis=0)
+
+            traj = traj + 0.5
+            traj[:, 0] = -traj[:, 0]
+            # traj *= 2
+            traj = traj.tolist()
+            # steering = can_list[idx]['steering']
+            # speed = can_list[idx]['vehicle_speed']
+            steering = 0
+            speed = 0
                 
             img_dict = {'CAM_FRONT' : base64.b64encode(cv2.imencode('.jpg', cv2.resize(img_ori_arr[0], (470, 264)))[1]).decode('utf-8'),
                         'CAM_BACK' : base64.b64encode(cv2.imencode('.jpg', cv2.resize(img_ori_arr[3], (470, 264)))[1]).decode('utf-8'),
@@ -458,7 +473,8 @@ def main():
                     'speed' : speed,
                     'obj' : data_obj,
                     'img' : img_dict,
-                    'dot' : data_dot}
+                    'dot' : data_dot,
+                    'traj' : traj}
         
             data_send = json.dumps(data_send).encode('utf-8')
 

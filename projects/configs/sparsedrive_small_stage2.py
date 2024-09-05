@@ -82,7 +82,7 @@ with_quality_estimation = True
 task_config = dict(
     with_det=True,
     with_map=True,
-    with_motion_plan=False,
+    with_motion_plan=True,
 )
 
 model = dict(

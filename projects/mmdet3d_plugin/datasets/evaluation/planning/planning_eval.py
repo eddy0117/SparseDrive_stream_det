@@ -139,7 +139,7 @@ def planning_eval(results, eval_config, logger):
     for i, data in enumerate(tqdm(dataloader)):
         sdc_planning = data['gt_ego_fut_trajs'].cumsum(dim=-2).unsqueeze(1)
         sdc_planning_mask = data['gt_ego_fut_masks'].unsqueeze(-1).repeat(1, 1, 2).unsqueeze(1)
-        command = data['gt_ego_fut_cmd'].argmax(dim=-1).item()
+        # command = data['gt_ego_fut_cmd'].argmax(dim=-1).item()
         fut_boxes = data['fut_boxes']
         if not sdc_planning_mask.all(): ## for incomplete gt, we do not count this sample
             continue

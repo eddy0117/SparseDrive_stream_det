@@ -46,8 +46,8 @@ SCORE_THRESH = 0.3
 
 MAP_SCORE_THRESH = 0.3
 
-VERSION = 'v1.0-trainval'
-# VERSION = 'v1.0-mini'
+# VERSION = 'v1.0-trainval'
+VERSION = 'v1.0-mini'
 
 MAP_SIZE = 682
 
@@ -71,9 +71,10 @@ def main():
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
 
     scene_list = ['scene-0103', 'scene-0916']
-    scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
+    # scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
     # scene_list = ['scene-0061', 'scene-0553', 'scene-0655', 'scene-0757', 'scene-0796', 'scene-1077', 'scene-1094', 'scene-1100']
-    
+    # scene_list = ['scene-0003', 'scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016', 'scene-0017', 'scene-0018',
+    #  'scene-0035', 'scene-0036', 'scene-0038', 'scene-0039', 'scene-0092', 'scene-0093', 'scene-0094', 'scene-0095',]
     cams = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT']
 
     

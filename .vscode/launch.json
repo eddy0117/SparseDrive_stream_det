@@ -17,7 +17,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["./projects/configs/sparsedrive_small_stage1.py",
+            "args": ["./projects/configs/sparsedrive_small_stage1_mod.py",
              "--deterministic"],
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
             "justMyCode": false

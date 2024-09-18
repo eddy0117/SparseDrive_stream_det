@@ -53,15 +53,18 @@ MAP_SIZE = 682
 
 IS_SWEEP = False
 
+# 是否將模型輸出透過TCP發送
 IS_SERVER = True
 
 set_random_seed(42)
 
 def main():
 
-    lidar2img_fixed_dict = {}
     config_path = 'projects/configs/sparsedrive_small_stage2.py'
     checkpoint_path = 'ckpts/sparsedrive_stage2.pth'
+
+    lidar2img_fixed_dict = {}
+    
    
     samples_per_gpu = 1
 
@@ -72,7 +75,11 @@ def main():
 
     scene_list = ['scene-0103', 'scene-0916']
     # scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
+    
+    
+    # scene_list = ['scene-1094', 'scene-1100']
     # scene_list = ['scene-0061', 'scene-0553', 'scene-0655', 'scene-0757', 'scene-0796', 'scene-1077', 'scene-1094', 'scene-1100']
+
     # scene_list = ['scene-0003', 'scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016', 'scene-0017', 'scene-0018',
     #  'scene-0035', 'scene-0036', 'scene-0038', 'scene-0039', 'scene-0092', 'scene-0093', 'scene-0094', 'scene-0095',]
     cams = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT']
@@ -88,12 +95,9 @@ def main():
 
         print('connecting to server')
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('localhost', 65432))
+        client_socket.connect(('192.168.0.107', 65432))
         print('finish connecting')
-    
-    # checkpoint_path = 'ckpts/stream_petr_vov_flash_800_bs2_seq_24e.pth'
 
-    
 
     
     
@@ -379,11 +383,11 @@ def main():
                 output = model(return_loss=False, rescale=True, **input_data)
             
             
-
+            print('inference time', time.time() - t0)
 
             # =============== 模型結果送到 GUI 的資料處理 ================
 
-
+            t0 = time.time()
             data_obj = []
             data_dot = []
 
@@ -414,11 +418,35 @@ def main():
 
                 # calculate angle degree
                 angle = np.arctan2(y[1] - y[0], x[1] - x[0]) * 180 / np.pi
+
+                # car stopped or not
+                traj_score = result['trajs_score'][i].numpy()
+                traj = result['trajs_3d'][i].numpy()
+                num_modes = len(traj_score)
+                center_for_stop = bboxes[i, :2][None, None].repeat(num_modes, 1, 1).numpy()
+                traj = np.concatenate([center_for_stop, traj], axis=1)
+
+                sorted_ind = np.argsort(traj_score)[::-1]
+                sorted_traj = traj[sorted_ind, :, :2]
+                sorted_score = traj_score[sorted_ind]
+                norm_score = np.exp(sorted_score[0])
+                
+                
+                viz_traj = sorted_traj[0]
+                traj_score = np.exp(sorted_score[0])/norm_score
+
+                head2end_dis = int(np.linalg.norm(viz_traj[0] - viz_traj[-1]))
+
+                if head2end_dis < 30:
+                    is_stop = 1
+                else:
+                    is_stop = 0
                 
                 data_obj.append({'x': center[0], 
                                  'y' :1 - center[1], 
                                  'cls' : CLASS[result['labels_3d'][i]], 
-                                 'ang' : angle - 90})
+                                 'ang' : angle - 90,
+                                 'is_stop' : is_stop})
                 
                 
             # 處理 vector map
@@ -461,10 +489,10 @@ def main():
             traj[:, 0] = -traj[:, 0]
             # traj *= 2
             traj = traj.tolist()
-            # steering = can_list[idx]['steering']
-            # speed = can_list[idx]['vehicle_speed']
-            steering = 0
-            speed = 0
+            steering = can_list[idx]['steering']
+            speed = can_list[idx]['vehicle_speed']
+            # steering = 0
+            # speed = 0
                 
             img_dict = {'CAM_FRONT' : base64.b64encode(cv2.imencode('.jpg', cv2.resize(img_ori_arr[0], (470, 264)))[1]).decode('utf-8'),
                         'CAM_BACK' : base64.b64encode(cv2.imencode('.jpg', cv2.resize(img_ori_arr[3], (470, 264)))[1]).decode('utf-8'),
@@ -491,10 +519,11 @@ def main():
 
             if not IS_SWEEP:
             
-                    sample = nusc.get('sample', sample['next'])
-
+                sample = nusc.get('sample', sample['next'])
+            
+            print('postpro time', time.time() - t0)
             idx += 1
-            print('inference time', time.time() - t0)
+            
     
 
 if __name__ == "__main__":

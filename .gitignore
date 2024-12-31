@@ -3,7 +3,9 @@
 *.pth
 *.whl
 *.swp
-
+*.jpg
+*.jpeg
+*.gif
 data/
 ckpt/
 work_dirs*/
@@ -21,4 +23,3 @@ job_scripts/
 temp_ops/
 data
 wandb/
-vid*/

@@ -21,3 +21,4 @@ job_scripts/
 temp_ops/
 data
 wandb/
+tools/vid

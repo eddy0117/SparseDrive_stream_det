@@ -16,7 +16,7 @@ lib/
 build/
 __pycache__/
 *.so
-
+*.prof
 job_scripts/
 temp_ops/
 data

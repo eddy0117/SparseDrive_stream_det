@@ -107,6 +107,9 @@ class DeformableFeatureAggregation(BaseModule):
         constant_init(self.weights_fc, val=0.0, bias=0.0)
         xavier_init(self.output_proj, distribution="uniform", bias=0.0)
 
+    # MODIFIED fp16
+    from mmcv.runner import force_fp32
+    @force_fp32(apply_to=("instance_feature", "anchor", "anchor_embed"))
     def forward(
         self,
         instance_feature: torch.Tensor,
@@ -154,6 +157,7 @@ class DeformableFeatureAggregation(BaseModule):
             )
             features = self.multi_view_level_fusion(features, weights)
             features = features.sum(dim=2)  # fuse multi-point features
+        # MODIFIED fp16
         output = self.proj_drop(self.output_proj(features))
         if self.residual_mode == "add":
             output = output + instance_feature

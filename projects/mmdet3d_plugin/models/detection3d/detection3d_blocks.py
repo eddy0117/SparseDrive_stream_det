@@ -55,9 +55,18 @@ class SparseBox3DEncoder(BaseModule):
             self.output_fc = None
 
     def forward(self, box_3d: torch.Tensor):
+        
+        # MODIFIED fix onnx errr
+        # ORI
         pos_feat = self.pos_fc(box_3d[..., [X, Y, Z]])
         size_feat = self.size_fc(box_3d[..., [W, L, H]])
         yaw_feat = self.yaw_fc(box_3d[..., [SIN_YAW, COS_YAW]])
+
+        
+        # pos_feat = self.pos_fc(box_3d[..., X:W])
+        # size_feat = self.size_fc(box_3d[..., W:SIN_YAW])
+        # yaw_feat = self.yaw_fc(box_3d[..., SIN_YAW:VX])
+
         if self.mode == "add":
             output = pos_feat + size_feat + yaw_feat
         elif self.mode == "cat":
@@ -133,10 +142,16 @@ class SparseBox3DRefinementModule(BaseModule):
         output[..., self.refine_state] = (
             output[..., self.refine_state] + anchor[..., self.refine_state]
         )
+        # MODIFIED fix onnx errr
+        # ORI
         if self.normalize_yaw:
             output[..., [SIN_YAW, COS_YAW]] = torch.nn.functional.normalize(
                 output[..., [SIN_YAW, COS_YAW]], dim=-1
             )
+        # if self.normalize_yaw:
+        #     output[..., SIN_YAW:COS_YAW+1] = torch.nn.functional.normalize(
+        #         output[..., SIN_YAW:COS_YAW+1], dim=-1
+        #     )
         if self.output_dim > 8:
             if not isinstance(time_interval, torch.Tensor):
                 time_interval = instance_feature.new_tensor(time_interval)
@@ -189,7 +204,11 @@ class SparseBox3DKeyPointsGenerator(BaseModule):
         temp_timestamps=None,
     ):
         bs, num_anchor = anchor.shape[:2]
+        # MODIFIED fix onnx errr
+        # ORI
         size = anchor[..., None, [W, L, H]].exp()
+        
+        # size = anchor[..., None, W:H+1].exp()
         key_points = self.fix_scale * size
         if self.num_learnable_pts > 0 and instance_feature is not None:
             learnable_scale = (
@@ -209,11 +228,14 @@ class SparseBox3DKeyPointsGenerator(BaseModule):
         rotation_mat[:, :, 1, 0] = anchor[:, :, SIN_YAW]
         rotation_mat[:, :, 1, 1] = anchor[:, :, COS_YAW]
         rotation_mat[:, :, 2, 2] = 1
-
+        
         key_points = torch.matmul(
             rotation_mat[:, :, None], key_points[..., None]
         ).squeeze(-1)
+        # MODIFIED fix onnx errr
+        # ORI
         key_points = key_points + anchor[..., None, [X, Y, Z]]
+        # key_points = key_points + anchor[..., None, :3]
 
         if (
             cur_timestamp is None
@@ -262,8 +284,10 @@ class SparseBox3DKeyPointsGenerator(BaseModule):
             T_src2dst = torch.unsqueeze(
                 T_src2dst_list[i].to(dtype=anchor.dtype), dim=1
             )
-
+            # MODIFIED fix onnx errr
+            # ORI
             center = anchor[..., [X, Y, Z]]
+            # center = anchor[..., :3]
             if time_intervals is not None:
                 time_interval = time_intervals[i]
             elif src_timestamp is not None and dst_timestamps is not None:
@@ -282,12 +306,31 @@ class SparseBox3DKeyPointsGenerator(BaseModule):
                 ).squeeze(dim=-1)
                 + T_src2dst[..., :3, 3]
             )
+            # MODIFIED fix onnx errr
+            # ORI
             size = anchor[..., [W, L, H]]
             yaw = torch.matmul(
                 T_src2dst[..., :2, :2],
                 anchor[..., [COS_YAW, SIN_YAW], None],
             ).squeeze(-1)
+
+            # size = anchor[..., W:H+1]
+            # yaw_cos = anchor[..., COS_YAW, None]
+            # yaw_sin = anchor[..., SIN_YAW, None]
+            # yaw_cos_sin = torch.cat([yaw_cos, yaw_sin], dim=-1).unsqueeze(-1)
+            # yaw = torch.matmul(
+            #     T_src2dst[..., :2, :2],
+            #     yaw_cos_sin,
+            # ).squeeze(-1)
+
+
+            # MODIFIED fix onnx errr
+            # ORI
             yaw = yaw[..., [1,0]]
+            # yaw_1 = yaw[..., 1]
+            # yaw_0 = yaw[..., 0]
+            # yaw = torch.stack([yaw_1, yaw_0], dim=-1)
+
             vel = torch.matmul(
                 T_src2dst[..., :vel_dim, :vel_dim], vel[..., None]
             ).squeeze(-1)

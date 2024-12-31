@@ -1,5 +1,5 @@
 # ================ base config ===================
-version = 'mini'
+# version = 'mini'
 version = 'trainval'
 length = {'trainval': 28130, 'mini': 323}
 
@@ -14,7 +14,7 @@ num_gpus = 1
 batch_size = total_batch_size // num_gpus
 num_iters_per_epoch = int(length[version] // (num_gpus * batch_size))
 num_epochs = 100
-checkpoint_epoch_interval = 20
+checkpoint_epoch_interval = 100
 
 checkpoint_config = dict(
     interval=num_iters_per_epoch * checkpoint_epoch_interval
@@ -25,10 +25,10 @@ log_config = dict(
         dict(type='WandbLoggerHook',
             init_kwargs=dict(
                 project='SparseDrive',
-                name='stage1_r18',
+                name='stage1_det_map_attnfp16',
         )),
         dict(type="TextLoggerHook", by_epoch=False),
-        dict(type="TensorboardLoggerHook"),
+        # dict(type="TensorboardLoggerHook"),
     ],
 )
 load_from = None
@@ -86,7 +86,7 @@ with_quality_estimation = True
 
 task_config = dict(
     with_det=True,
-    with_map=False,
+    with_map=True,
     with_motion_plan=False,
 )
 
@@ -687,7 +687,8 @@ data = dict(
 # ================== training ========================
 optimizer = dict(
     type="AdamW",
-    lr=1e-4,
+    # MODIFIED lr for testing
+    lr=5e-5,
     weight_decay=0.001,
     paramwise_cfg=dict(
         custom_keys={

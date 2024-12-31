@@ -68,6 +68,7 @@ class InstanceQueue(nn.Module):
         ):
             if anchor_handler is not None:
                 T_temp2cur = feature_maps[0].new_tensor(
+                    # MODIFIED fix onnx err
                     np.stack(
                         [
                             x["T_global_inv"]
@@ -164,8 +165,14 @@ class InstanceQueue(nn.Module):
         batch_size,
     ):
         ## ego instance init
+
+
+        
+        
+
         feature_maps_inv = feature_maps_format(feature_maps, inverse=True)
         feature_map = feature_maps_inv[0][-1][:, 0]
+        # MODIFIED fp16
         ego_feature = self.ego_feature_encoder(feature_map)
         ego_feature = ego_feature.unsqueeze(1).squeeze(-1).squeeze(-1)
 

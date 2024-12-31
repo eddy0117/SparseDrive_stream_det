@@ -97,6 +97,7 @@ class InstanceBank(nn.Module):
             self.mask = torch.abs(time_interval) <= self.max_time_interval
 
             if self.anchor_handler is not None:
+                # MODIFIED fix onnx err
                 T_temp2cur = self.cached_anchor.new_tensor(
                     np.stack(
                         [

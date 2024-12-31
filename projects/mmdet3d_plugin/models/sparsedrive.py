@@ -13,6 +13,7 @@ from mmdet.models import (
     build_neck,
 )
 from .grid_mask import GridMask
+from torch.cuda.amp.autocast_mode import autocast
 
 try:
     from ..ops import feature_maps_format
@@ -97,6 +98,7 @@ class SparseDrive(BaseDetector):
 
     def forward_train(self, img, **data):
         feature_maps, depths = self.extract_feat(img, True, data)
+        # with autocast(enabled=True, dtype=torch.bfloat16):
         model_outs = self.head(feature_maps, data)
         output = self.head.loss(model_outs, data)
         if depths is not None and "gt_depth" in data:
@@ -118,12 +120,19 @@ class SparseDrive(BaseDetector):
         # data.pop('gt_ego_fut_cmd')
         # data.pop('return_loss')
         # data.pop('rescale')
-
+        
+        # import time
+        # t0 = time.time()
         feature_maps = self.extract_feat(img)
-
+        # ext_time = round((time.time() - t0) * 1000, 2)
+        # t0 = time.time()
         model_outs = self.head(feature_maps, data)
+        # head_time = round((time.time() - t0) * 1000, 2)
+        # t0 = time.time()
         results = self.head.post_process(model_outs, data)
+        # post_time = round((time.time() - t0) * 1000, 2)
         output = [{"img_bbox": result} for result in results]
+        # print(f"ext_time: {ext_time}ms, head_time: {head_time}ms, post_time: {post_time}ms")
         return output
 
     def aug_test(self, img, **data):

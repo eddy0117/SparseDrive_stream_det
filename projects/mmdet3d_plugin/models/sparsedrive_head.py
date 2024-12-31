@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 import torch
 import torch.nn as nn
-
+from torch.amp.autocast_mode import autocast
 from mmcv.runner import BaseModule
 from mmdet.models import HEADS
 from mmdet.models import build_head
@@ -47,8 +47,10 @@ class SparseDriveHead(BaseModule):
             det_output = self.det_head(feature_maps, metas)
         else:
             det_output = None
-
+        
         if self.task_config['with_map']:
+            # MODIFIED fp16
+            # with autocast(device_type="cuda", dtype=torch.float16, enabled=True):
             map_output = self.map_head(feature_maps, metas)
         else:
             map_output = None

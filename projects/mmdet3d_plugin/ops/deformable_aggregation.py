@@ -5,6 +5,20 @@ from . import deformable_aggregation_ext
 
 
 class DeformableAggregationFunction(Function):
+    # MODIFIED fix onnx err
+    @staticmethod
+    def symbolic(
+        g, mc_ms_feat, spatial_shape, scale_start_index, sampling_location, weights
+    ):
+        return g.op(
+            "custom::DeformableAttentionAggrPlugin",
+            mc_ms_feat,
+            spatial_shape,
+            scale_start_index,
+            sampling_location,
+            weights,
+        )
+
     @staticmethod
     def forward(
         ctx,

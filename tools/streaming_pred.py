@@ -20,6 +20,8 @@ from mmdet.apis import single_gpu_test, multi_gpu_test, set_random_seed
 from mmdet.datasets import replace_ImageToTensor, build_dataset
 from mmdet.datasets import build_dataloader as build_dataloader_origin
 from mmdet.models import build_detector
+import sys
+sys.path.insert(0, '/home/eddy/Programs/SparseDrive_stream_det')
 
 from projects.mmdet3d_plugin.datasets.builder import build_dataloader
 from projects.mmdet3d_plugin.apis.test import custom_multi_gpu_test
@@ -49,12 +51,13 @@ MAP_SCORE_THRESH = 0.3
 # VERSION = 'v1.0-trainval'
 VERSION = 'v1.0-mini'
 
-MAP_SIZE = 682
 
 IS_SWEEP = False
 
 # 是否將模型輸出透過TCP發送
 IS_SERVER = True
+IS_MAP = True
+IS_TRAJ = True
 
 set_random_seed(42)
 
@@ -62,6 +65,11 @@ def main():
 
     config_path = 'projects/configs/sparsedrive_small_stage2.py'
     checkpoint_path = 'ckpts/sparsedrive_stage2.pth'
+
+    # config_path = 'projects/configs/sparsedrive_small_stage1.py'
+    # checkpoint_path = 'ckpts/our_train_stage1.pth'
+    # checkpoint_path = 'ckpts/our_train_stage1_bit.pth'
+    # checkpoint_path = 'ckpts/sparsedrive_stage1.pth'
 
     lidar2img_fixed_dict = {}
     
@@ -88,87 +96,26 @@ def main():
     sd_rec_c_dict = {}
 
     bev_idx = 0
-
+    infer_time_arr = []
     # socket connection setup
 
     if IS_SERVER:
 
         print('connecting to server')
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('192.168.0.107', 65432))
+        client_socket.connect(('localhost', 65432))
         print('finish connecting')
 
-
-    
-    
     cfg = Config.fromfile(config_path)
     
 
 
-    # import modules from string list.
-    if cfg.get("custom_imports", None):
-        from mmcv.utils import import_modules_from_strings
-        import_modules_from_strings(**cfg["custom_imports"])
-
-    # import modules from plguin/xx, registry will be updated
-    if hasattr(cfg, "plugin"):
-        if cfg.plugin:
-            import importlib
-
-            if hasattr(cfg, "plugin_dir"):
-                plugin_dir = cfg.plugin_dir
-                _module_dir = os.path.dirname(plugin_dir)
-                _module_dir = _module_dir.split("/")
-                _module_path = _module_dir[0]
-
-                for m in _module_dir[1:]:
-                    _module_path = _module_path + "." + m
-                print(_module_path)
-                plg_lib = importlib.import_module(_module_path)
-           
     # set cudnn_benchmark
     if cfg.get("cudnn_benchmark", False):
         torch.backends.cudnn.benchmark = True
 
     cfg.model.pretrained = None
     # in case the test dataset is concatenated
-    samples_per_gpu = 1
-    if isinstance(cfg.data.test, dict):
-        cfg.data.test.test_mode = True
-        samples_per_gpu = cfg.data.test.pop("samples_per_gpu", 1)
-        if samples_per_gpu > 1:
-            # Replace 'ImageToTensor' to 'DefaultFormatBundle'
-            cfg.data.test.pipeline = replace_ImageToTensor(
-                cfg.data.test.pipeline
-            )
-    elif isinstance(cfg.data.test, list):
-        for ds_cfg in cfg.data.test:
-            ds_cfg.test_mode = True
-        samples_per_gpu = max(
-            [ds_cfg.pop("samples_per_gpu", 1) for ds_cfg in cfg.data.test]
-        )
-        if samples_per_gpu > 1:
-            for ds_cfg in cfg.data.test:
-                ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
-
-    if cfg.get('work_dir', None) is None:
-        # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(config_path))[0]) 
-    mmcv.mkdir_or_exist(osp.abspath(cfg.work_dir))
-    cfg.data.test.work_dir = cfg.work_dir
-    print('work_dir: ',cfg.work_dir)
-    # build the dataloader
-    # dataset = build_dataset(cfg.data.test)
-    
-  
-    # data_loader = build_dataloader_origin(
-    #     dataset,
-    #     samples_per_gpu=samples_per_gpu,
-    #     workers_per_gpu=cfg.data.workers_per_gpu,
-    #     dist=False,
-    #     shuffle=False,
-    # )
 
     # build the model and load checkpoint
     cfg.model.train_cfg = None
@@ -217,6 +164,8 @@ def main():
         
 
         while sample['next'] != '':
+
+           
 
             t0 = time.time()
 
@@ -285,27 +234,34 @@ def main():
 
                 
                 # lidar
-                l2e_t = np.array(cs_record_l['translation'])
-                e2g_t = np.array(pose_record_l['translation'])
-                l2e_r = np.array(cs_record_l['rotation'])
-                e2g_r = np.array(pose_record_l['rotation'])
+                # l2e_t = np.array(cs_record_l['translation'])
+                # e2g_t = np.array(pose_record_l['translation'])
+                # l2e_r = np.array(cs_record_l['rotation'])
+                # e2g_r = np.array(pose_record_l['rotation'])
 
                 # cam
-                l2e_t_s = np.array(cs_record_c['translation'])
-                e2g_t_s = np.array(pose_record_c['translation'])
-                l2e_r_s = np.array(cs_record_c['rotation'])
+                # cam to ego(car center)
+                c2e_t_s = np.array(cs_record_c['translation'])
+                c2e_r_s = np.array(cs_record_c['rotation'])
+
+                # cam to global
+                e2g_t_s = np.array(pose_record_c['translation']) 
                 e2g_r_s = np.array(pose_record_c['rotation'])
 
 
-                l2e_r_mat = Quaternion(l2e_r).rotation_matrix
-                e2g_r_mat = Quaternion(e2g_r).rotation_matrix
+                # l2e_r_mat = Quaternion(l2e_r).rotation_matrix
+                # e2g_r_mat = Quaternion(e2g_r).rotation_matrix
+                l2e_r_mat = l2e_rotation
+                e2g_r_mat = e2g_rotation
+                l2e_t = l2e_translation
+                e2g_t = e2g_translation
 
-                l2e_r_s_mat = Quaternion(l2e_r_s).rotation_matrix
+                c2e_r_s_mat = Quaternion(c2e_r_s).rotation_matrix
                 e2g_r_s_mat = Quaternion(e2g_r_s).rotation_matrix
 
-                R = (l2e_r_s_mat.T @ e2g_r_s_mat.T) @ (
+                R = (c2e_r_s_mat.T @ e2g_r_s_mat.T) @ (
                         np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
-                T = (l2e_t_s @ e2g_r_s_mat.T + e2g_t_s) @ (
+                T = (c2e_t_s @ e2g_r_s_mat.T + e2g_t_s) @ (
                     np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
                 T -= e2g_t @ (np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T
                                 ) + l2e_t @ np.linalg.inv(l2e_r_mat).T
@@ -368,23 +324,28 @@ def main():
             img_metas = {'T_global' : ego_pose,
                     'T_global_inv' : ego_pose_inv,
                     'timestamp' : timestamp}
-            
+            print('ego_pose', ego_pose)
 
             input_data = {'img_metas': [[img_metas]],                      
                         'img': [torch.Tensor([img_arr]).to('cuda')],
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
                         'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),
-                        'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
+                        # 'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
+                        'ego_status' : torch.Tensor([np.array([0] * 10)]).to('cuda'),
                         'gt_ego_fut_cmd' : torch.Tensor([np.array([0, 0, 1])]).to('cuda')
                         }
             
+            prepro_time = round((time.time() - t0) * 1000, 2)
+            t0 = time.time()
+
             with torch.no_grad():
                 output = model(return_loss=False, rescale=True, **input_data)
             
             
-            print('inference time', time.time() - t0)
-
+            # print('inference time', round((time.time() - t0) * 1000, 2), 'ms')
+            infer_time = round((time.time() - t0) * 1000, 2)
+            infer_time_arr.append(infer_time)
             # =============== 模型結果送到 GUI 的資料處理 ================
 
             t0 = time.time()
@@ -398,10 +359,10 @@ def main():
 
             for i in range(result['labels_3d'].shape[0]):
                 score = result['scores_3d'][i]
+                # print(score)
                 if score < SCORE_THRESH: 
                     continue
                 
-
                 corners = box3d_to_corners(bboxes)[i, [0, 3, 7, 4, 0]]
 
 
@@ -410,87 +371,93 @@ def main():
                 center = np.mean(corners[0:4], axis=0)
                 x = [forward_center[0], center[0]]
                 y = [forward_center[1], center[1]]
-
+                
                 # x = [(i / 60 + 0.5) * 256 for i in x]
                 # y = [(1 - (i / 60 + 0.5)) * 256 for i in y]
-
-                center = center / 60 + 0.5
+                center1 = center
+                center = center / 60
+                
 
                 # calculate angle degree
                 angle = np.arctan2(y[1] - y[0], x[1] - x[0]) * 180 / np.pi
 
                 # car stopped or not
-                traj_score = result['trajs_score'][i].numpy()
-                traj = result['trajs_3d'][i].numpy()
-                num_modes = len(traj_score)
-                center_for_stop = bboxes[i, :2][None, None].repeat(num_modes, 1, 1).numpy()
-                traj = np.concatenate([center_for_stop, traj], axis=1)
+                is_stop = 0
+                if IS_TRAJ:
+                    traj_score = result['trajs_score'][i].numpy()
+                    traj = result['trajs_3d'][i].numpy()
+                    num_modes = len(traj_score)
+                    center_for_stop = bboxes[i, :2][None, None].repeat(num_modes, 1, 1).numpy()
+                    traj = np.concatenate([center_for_stop, traj], axis=1)
 
-                sorted_ind = np.argsort(traj_score)[::-1]
-                sorted_traj = traj[sorted_ind, :, :2]
-                sorted_score = traj_score[sorted_ind]
-                norm_score = np.exp(sorted_score[0])
-                
-                
-                viz_traj = sorted_traj[0]
-                traj_score = np.exp(sorted_score[0])/norm_score
+                    sorted_ind = np.argsort(traj_score)[::-1]
+                    sorted_traj = traj[sorted_ind, :, :2]
+                    sorted_score = traj_score[sorted_ind]
+                    norm_score = np.exp(sorted_score[0])
+                    
+                    
+                    viz_traj = sorted_traj[0]
+                    traj_score = np.exp(sorted_score[0])/norm_score
 
-                head2end_dis = int(np.linalg.norm(viz_traj[0] - viz_traj[-1]))
+                    head2end_dis = int(np.linalg.norm(viz_traj[0] - viz_traj[-1]))
 
-                if head2end_dis < 30:
-                    is_stop = 1
-                else:
-                    is_stop = 0
+                    if head2end_dis < 30:
+                        is_stop = 1
+                    else:
+                        is_stop = 0
                 
                 data_obj.append({'x': center[0], 
-                                 'y' :1 - center[1], 
+                                 'y' :-center[1], 
                                  'cls' : CLASS[result['labels_3d'][i]], 
                                  'ang' : angle - 90,
                                  'is_stop' : is_stop})
                 
                 
             # 處理 vector map
-            
-            for i in range(result['scores'].shape[0]):
-                score = result['scores'][i]
+           
+            if IS_MAP:
+                for i in range(result['scores'].shape[0]):
+                    score = result['scores'][i]
+                    
+                    if score < MAP_SCORE_THRESH:
+                        continue
+                    # print(score)
                 
-                if score < MAP_SCORE_THRESH:
-                    continue
-                # print(score)
-               
 
-        
-                pts = result['vectors'][i].copy()
+            
+                    pts = result['vectors'][i].copy()
 
-                pts[:, 0] = (1 - (pts[:, 0] / 60 + 0.5))  # x
-                pts[:, 1] = ((pts[:, 1] / 60 + 0.5))  # y
+                    pts[:, 0] = (1 - (pts[:, 0] / 60 + 0.5))  # x
+                    pts[:, 1] = ((pts[:, 1] / 60 + 0.5))  # y
 
-                # 將道路類別與原本的設定配對一致
-                # 0 : side, 1 : crosswalk, 2 : roadline
-                if result['labels'][i] == 0: 
-                    result['labels'][i] = 1
-                elif result['labels'][i] == 1:
-                    result['labels'][i] = 2
-                else:
-                    result['labels'][i] = 0
+                    # 將道路類別與原本的設定配對一致
+                    # 0 : side, 1 : crosswalk, 2 : roadline
+                    if result['labels'][i] == 0: 
+                        result['labels'][i] = 1
+                    elif result['labels'][i] == 1:
+                        result['labels'][i] = 2
+                    else:
+                        result['labels'][i] = 0
 
-                data_dot.append({'x' : pts[:, 0].tolist(), 
-                                 'y' : pts[:, 1].tolist(), 
-                                 'cls' : int(result['labels'][i])}) # x, y, class
+                    data_dot.append({'x' : pts[:, 0].tolist(), 
+                                    'y' : pts[:, 1].tolist(), 
+                                    'cls' : int(result['labels'][i])}) # x, y, class
 
 
             # 處理 motion planning
-                
-            traj_all = draw_planning_pred(result)
+            traj = None
+            if IS_TRAJ: 
+                traj_all = draw_planning_pred(result)
 
-            traj = np.mean(traj_all, axis=0)
+                traj = np.mean(traj_all, axis=0)
 
-            traj = traj + 0.5
-            traj[:, 0] = -traj[:, 0]
-            # traj *= 2
-            traj = traj.tolist()
-            steering = can_list[idx]['steering']
-            speed = can_list[idx]['vehicle_speed']
+                traj = traj + 0.5
+                traj[:, 0] = -traj[:, 0]
+                # traj *= 2
+                traj = traj.tolist()
+
+            # steering = can_list[idx]['steering']
+            # speed = can_list[idx]['vehicle_speed']
             # steering = 0
             # speed = 0
                 
@@ -498,8 +465,9 @@ def main():
                         'CAM_BACK' : base64.b64encode(cv2.imencode('.jpg', cv2.resize(img_ori_arr[3], (470, 264)))[1]).decode('utf-8'),
                         }
             
-            data_send = {'steering' : steering,
-                    'speed' : speed,
+            data_send = {
+                    # 'steering' : steering,
+                    # 'speed' : speed,
                     'obj' : data_obj,
                     'img' : img_dict,
                     'dot' : data_dot,
@@ -520,11 +488,16 @@ def main():
             if not IS_SWEEP:
             
                 sample = nusc.get('sample', sample['next'])
-            
-            print('postpro time', time.time() - t0)
+            # 每項右邊空格都是一個 tab
+            postpro_time = round((time.time() - t0) * 1000, 2)
+            # print('postpro time', round((time.time() - t0)  * 1000, 2), 'ms')
+            print(  'frame : ', idx,
+                    'prepro time : ', prepro_time, 'ms, ',
+                    'infer time : ', infer_time, 'ms, ',
+                    'postpro time : ', postpro_time, 'ms')
             idx += 1
             
-    
+    print('average inference time : ', np.mean(infer_time_arr[1:]), 'ms')
 
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method(

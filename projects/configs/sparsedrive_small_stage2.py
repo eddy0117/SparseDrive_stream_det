@@ -1,7 +1,7 @@
 # ================ base config ===================
-version = 'mini'
-# version = 'trainval'
-length = {'trainval': 28130, 'mini': 323}
+# version = "mini"
+version = 'trainval'
+length = {"trainval": 28130, "mini": 323}
 
 plugin = True
 plugin_dir = "projects/mmdet3d_plugin/"
@@ -16,9 +16,7 @@ num_iters_per_epoch = int(length[version] // (num_gpus * batch_size))
 num_epochs = 10
 checkpoint_epoch_interval = 10
 
-checkpoint_config = dict(
-    interval=num_iters_per_epoch * checkpoint_epoch_interval
-)
+checkpoint_config = dict(interval=num_iters_per_epoch * checkpoint_epoch_interval)
 log_config = dict(
     interval=51,
     hooks=[
@@ -47,9 +45,9 @@ class_names = [
     "traffic_cone",
 ]
 map_class_names = [
-    'ped_crossing',
-    'divider',
-    'boundary',
+    "ped_crossing",
+    "divider",
+    "boundary",
 ]
 num_classes = len(class_names)
 num_map_classes = len(map_class_names)
@@ -60,7 +58,7 @@ fut_ts = 12
 fut_mode = 6
 ego_fut_ts = 6
 ego_fut_mode = 6
-queue_length = 4 # history + current
+queue_length = 4  # history + current
 
 embed_dims = 256
 num_groups = 8
@@ -348,7 +346,7 @@ model = dict(
                     num_sample=num_sample,
                     num_learnable_pts=3,
                     fix_height=(0, 0.5, -0.5, 1, -1),
-                    ground_height=-1.84023, # ground height in lidar frame
+                    ground_height=-1.84023,  # ground height in lidar frame
                 ),
             ),
             refine_layer=dict(
@@ -360,11 +358,13 @@ model = dict(
             sampler=dict(
                 type="SparsePoint3DTarget",
                 assigner=dict(
-                    type='HungarianLinesAssigner',
+                    type="HungarianLinesAssigner",
                     cost=dict(
-                        type='MapQueriesCost',
-                        cls_cost=dict(type='FocalLossCost', weight=1.0),
-                        reg_cost=dict(type='LinesL1Cost', weight=10.0, beta=0.01, permute=True),
+                        type="MapQueriesCost",
+                        cls_cost=dict(type="FocalLossCost", weight=1.0),
+                        reg_cost=dict(
+                            type="LinesL1Cost", weight=10.0, beta=0.01, permute=True
+                        ),
                     ),
                 ),
                 num_cls=num_map_classes,
@@ -381,7 +381,7 @@ model = dict(
             loss_reg=dict(
                 type="SparseLineLoss",
                 loss_line=dict(
-                    type='LinesL1Loss',
+                    type="LinesL1Loss",
                     loss_weight=10.0,
                     beta=0.01,
                 ),
@@ -394,16 +394,16 @@ model = dict(
             gt_reg_key="gt_map_pts",
             gt_id_key="map_instance_id",
             with_instance_id=False,
-            task_prefix='map',
+            task_prefix="map",
         ),
         motion_plan_head=dict(
-            type='MotionPlanningHead',
+            type="MotionPlanningHead",
             fut_ts=fut_ts,
             fut_mode=fut_mode,
             ego_fut_ts=ego_fut_ts,
             ego_fut_mode=ego_fut_mode,
-            motion_anchor=f'data/kmeans/kmeans_motion_{fut_mode}.npy',
-            plan_anchor=f'data/kmeans/kmeans_plan_{ego_fut_mode}.npy',
+            motion_anchor=f"data/kmeans/kmeans_motion_{fut_mode}.npy",
+            plan_anchor=f"data/kmeans/kmeans_plan_{ego_fut_mode}.npy",
             embed_dims=embed_dims,
             decouple_attn=decouple_attn_motion,
             instance_queue=dict(
@@ -411,7 +411,10 @@ model = dict(
                 embed_dims=embed_dims,
                 queue_length=queue_length,
                 tracking_threshold=0.2,
-                feature_map_scale=(input_shape[1]/strides[-1], input_shape[0]/strides[-1]),
+                feature_map_scale=(
+                    input_shape[1] / strides[-1],
+                    input_shape[0] / strides[-1],
+                ),
             ),
             operation_order=(
                 [
@@ -420,10 +423,11 @@ model = dict(
                     "norm",
                     "cross_gnn",
                     "norm",
-                    "ffn",                    
+                    "ffn",
                     "norm",
-                ] * 3 +
-                [
+                ]
+                * 3
+                + [
                     "refine",
                 ]
             ),
@@ -471,27 +475,27 @@ model = dict(
                 type="MotionTarget",
             ),
             motion_loss_cls=dict(
-                type='FocalLoss',
+                type="FocalLoss",
                 use_sigmoid=True,
                 gamma=2.0,
                 alpha=0.25,
-                loss_weight=0.2
+                loss_weight=0.2,
             ),
-            motion_loss_reg=dict(type='L1Loss', loss_weight=0.2),
+            motion_loss_reg=dict(type="L1Loss", loss_weight=0.2),
             planning_sampler=dict(
                 type="PlanningTarget",
                 ego_fut_ts=ego_fut_ts,
                 ego_fut_mode=ego_fut_mode,
             ),
             plan_loss_cls=dict(
-                type='FocalLoss',
+                type="FocalLoss",
                 use_sigmoid=True,
                 gamma=2.0,
                 alpha=0.25,
                 loss_weight=0.5,
             ),
-            plan_loss_reg=dict(type='L1Loss', loss_weight=1.0),
-            plan_loss_status=dict(type='L1Loss', loss_weight=1.0),
+            plan_loss_reg=dict(type="L1Loss", loss_weight=1.0),
+            plan_loss_status=dict(type="L1Loss", loss_weight=1.0),
             motion_decoder=dict(type="SparseBox3DMotionDecoder"),
             planning_decoder=dict(
                 type="HierarchicalPlanningDecoder",
@@ -508,7 +512,7 @@ model = dict(
 # ================== data ========================
 dataset_type = "NuScenes3DDataset"
 data_root = "data/nuscenes/"
-anno_root = "data/infos/" if version == 'trainval' else "data/infos/mini/"
+anno_root = "data/infos/" if version == "trainval" else "data/infos/mini/"
 file_client_args = dict(backend="disk")
 
 img_norm_cfg = dict(
@@ -537,7 +541,7 @@ train_pipeline = [
     ),
     dict(type="InstanceNameFilter", classes=class_names),
     dict(
-        type='VectorizeMap',
+        type="VectorizeMap",
         roi_size=roi_size,
         simplify=False,
         normalize=False,
@@ -556,14 +560,14 @@ train_pipeline = [
             "focal",
             "gt_bboxes_3d",
             "gt_labels_3d",
-            'gt_map_labels', 
-            'gt_map_pts',
-            'gt_agent_fut_trajs',
-            'gt_agent_fut_masks',
-            'gt_ego_fut_trajs',
-            'gt_ego_fut_masks',
-            'gt_ego_fut_cmd',
-            'ego_status',
+            "gt_map_labels",
+            "gt_map_pts",
+            "gt_agent_fut_trajs",
+            "gt_agent_fut_masks",
+            "gt_ego_fut_trajs",
+            "gt_ego_fut_masks",
+            "gt_ego_fut_cmd",
+            "ego_status",
         ],
         meta_keys=["T_global", "T_global_inv", "timestamp", "instance_id"],
     ),
@@ -580,8 +584,8 @@ test_pipeline = [
             "timestamp",
             "projection_mat",
             "image_wh",
-            'ego_status',
-            'gt_ego_fut_cmd',
+            "ego_status",
+            "gt_ego_fut_cmd",
         ],
         meta_keys=["T_global", "T_global_inv", "timestamp"],
     ),
@@ -593,25 +597,25 @@ eval_pipeline = [
     ),
     dict(type="InstanceNameFilter", classes=class_names),
     dict(
-        type='VectorizeMap',
+        type="VectorizeMap",
         roi_size=roi_size,
         simplify=True,
         normalize=False,
     ),
     dict(
-        type='Collect', 
+        type="Collect",
         keys=[
-            'vectors',
+            "vectors",
             "gt_bboxes_3d",
             "gt_labels_3d",
-            'gt_agent_fut_trajs',
-            'gt_agent_fut_masks',
-            'gt_ego_fut_trajs',
-            'gt_ego_fut_masks', 
-            'gt_ego_fut_cmd',
-            'fut_boxes'
+            "gt_agent_fut_trajs",
+            "gt_agent_fut_masks",
+            "gt_ego_fut_trajs",
+            "gt_ego_fut_masks",
+            "gt_ego_fut_cmd",
+            "fut_boxes",
         ],
-        meta_keys=['token', 'timestamp']
+        meta_keys=["token", "timestamp"],
     ),
 ]
 
@@ -633,7 +637,7 @@ data_basic_config = dict(
 )
 eval_config = dict(
     **data_basic_config,
-    ann_file=anno_root + 'nuscenes_infos_val.pkl',
+    ann_file=anno_root + "nuscenes_infos_val.pkl",
     pipeline=eval_pipeline,
     test_mode=True,
 )
@@ -714,8 +718,8 @@ eval_mode = dict(
     motion_threshhold=0.2,
 )
 evaluation = dict(
-    interval=num_iters_per_epoch*checkpoint_epoch_interval,
+    interval=num_iters_per_epoch * checkpoint_epoch_interval,
     eval_mode=eval_mode,
 )
 # ================== pretrained model ========================
-load_from = 'ckpt/sparsedrive_stage1.pth'
+load_from = "ckpt/sparsedrive_stage1.pth"

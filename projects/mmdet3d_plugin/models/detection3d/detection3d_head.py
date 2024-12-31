@@ -12,7 +12,7 @@ from mmcv.cnn.bricks.registry import (
     FEEDFORWARD_NETWORK,
     NORM_LAYERS,
 )
-from mmcv.runner import BaseModule, force_fp32
+from mmcv.runner import BaseModule, force_fp32, auto_fp16
 from mmcv.utils import build_from_cfg
 from mmdet.core.bbox.builder import BBOX_SAMPLERS
 from mmdet.core.bbox.builder import BBOX_CODERS
@@ -66,6 +66,9 @@ class Sparse4DHead(BaseModule):
         self.cls_threshold_to_reg = cls_threshold_to_reg
         self.dn_loss_weight = dn_loss_weight
         self.decouple_attn = decouple_attn
+
+        # MODIFIED fp16
+        self.fp16_enabled = True
 
         if reg_weights is None:
             self.reg_weights = [1.0] * 10
@@ -164,7 +167,10 @@ class Sparse4DHead(BaseModule):
                 **kwargs,
             )
         )
-
+    # MODIFIED fp16
+    
+    # @auto_fp16(apply_to=("feature_maps"))
+    # @torch.autocast(device_type="cuda")
     def forward(
         self,
         feature_maps: Union[torch.Tensor, List],

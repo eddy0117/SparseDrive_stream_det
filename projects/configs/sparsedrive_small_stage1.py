@@ -22,11 +22,11 @@ checkpoint_config = dict(
 log_config = dict(
     interval=51,
     hooks=[
-        # dict(type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='SparseDrive',
-        #         name='stage1_r18',
-        # )),
+        dict(type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='SparseDrive',
+                name='stage1_r18',
+        )),
         dict(type="TextLoggerHook", by_epoch=False),
         dict(type="TensorboardLoggerHook"),
     ],

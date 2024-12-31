@@ -161,9 +161,12 @@ class MotionPlanningHead(BaseModule):
         motion_anchor = self.motion_anchor[cls_ids]
         prediction = prediction.detach()
         return self._agent2lidar(motion_anchor, prediction)
-
+    
     def _agent2lidar(self, trajs, boxes):
         yaw = torch.atan2(boxes[..., SIN_YAW], boxes[..., COS_YAW])
+        # MODIFIED fix onnx err
+        # from tools.my_atan2 import my_atan2
+        # yaw = my_atan2(boxes[..., SIN_YAW], boxes[..., COS_YAW])
         cos_yaw = torch.cos(yaw)
         sin_yaw = torch.sin(yaw)
         rot_mat_T = torch.stack(
@@ -262,6 +265,7 @@ class MotionPlanningHead(BaseModule):
         )
 
         # =========== mode query init ===========
+        # MODIFIED fp16
         motion_mode_query = self.motion_anchor_encoder(gen_sineembed_for_position(motion_anchor[..., -1, :]))
         plan_pos = gen_sineembed_for_position(plan_anchor[..., -1, :])
         plan_mode_query = self.plan_anchor_encoder(plan_pos).flatten(1, 2).unsqueeze(1)

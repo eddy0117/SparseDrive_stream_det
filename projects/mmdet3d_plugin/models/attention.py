@@ -13,6 +13,11 @@ from mmcv.cnn.bricks.drop import build_dropout
 from mmcv.cnn.bricks.registry import ATTENTION
 import torch.utils.checkpoint as cp
 
+# MODIFIED
+import torch
+from torch_ext_test import my_func_mm_bc, my_func_mm_qkv
+from projects.mmdet3d_plugin.models.my_linear.bitnet import BitLinear
+from projects.mmdet3d_plugin.models.my_linear.bitnet_inference import BitLinear_inference
 
 from einops import rearrange
 try:
@@ -30,8 +35,18 @@ def _in_projection_packed(q, k, v, w, b = None):
         b_q = b_k = b_v = None
     else:
         b_q, b_k, b_v = b.chunk(3)
+    # print('q:', q.shape, 'w_q:', w_q.shape, 'b_q:', b_q.shape)
+    # print('k:', k.shape, 'w_k:', w_k.shape, 'b_k:', b_k.shape)
+    # print('v:', v.shape, 'w_v:', w_v.shape, 'b_v:', b_v.shape)
+        
     return linear(q, w_q, b_q), linear(k, w_k, b_k), linear(v, w_v, b_v)
+        
+    # return my_func_mm_bc(q, w_q, b_q), my_func_mm_bc(k, w_k, b_k), my_func_mm_bc(v, w_v, b_v)
+    # return my_func_mm_qkv(q, w_q, b_q, k, w_k, b_k, v, w_v, b_v)
 
+    # MODIFIED for training
+    # return BitLinear()(q, w_q, b_q), BitLinear()(k, w_k, b_k), BitLinear()(v, w_v, b_v)
+    # return BitLinear_inference()(q, w_q, b_q), BitLinear_inference()(k, w_k, b_k), BitLinear_inference()(v, w_v, b_v)
 
 class FlashAttention(nn.Module):
     """Implement the scaled dot product attention with softmax.
@@ -123,25 +138,40 @@ class FlashMHA(nn.Module):
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self._reset_parameters()
 
+        # MODIFIED fp16
+        self.fp16_enabled = True
+
     def _reset_parameters(self) -> None:
         xavier_uniform_(self.in_proj_weight)
         if self.in_proj_bias is not None:
             constant_(self.in_proj_bias, 0.)
             constant_(self.out_proj.bias, 0.)
-        
+    
+    @auto_fp16(apply_to=('q', 'k', 'v'), out_fp32=True)
     def forward(self, q, k, v, key_padding_mask=None):
         """x: (batch, seqlen, hidden_dim) (where hidden_dim = num heads * head dim)
         key_padding_mask: bool tensor of shape (batch, seqlen)
         """
+        
         q, k, v = _in_projection_packed(q, k, v, self.in_proj_weight, self.in_proj_bias)
         q = rearrange(q, 'b s (h d) -> b s h d', h=self.num_heads)
         k = rearrange(k, 'b s (h d) -> b s h d', h=self.num_heads)
         v = rearrange(v, 'b s (h d) -> b s h d', h=self.num_heads)
         kv = torch.stack([k, v], dim=2)
-        
+        # import time
+        # t0 = time.time()
         context, attn_weights = self.inner_attn(q, kv, key_padding_mask=key_padding_mask, causal=self.causal)
-        return self.out_proj(rearrange(context, 'b s h d -> b s (h d)')), attn_weights
+        # print('forward Time:', round((time.time() - t0) * 1000, 2), 'ms')
+        # MODIFIED fp16
+        # out = my_func_mm_bc(rearrange(context, 'b s h d -> b s (h d)'), self.out_proj.weight, self.out_proj.bias)
+        # print('forward Time:', round((time.time() - t0) * 1000, 2), 'ms')
 
+
+        return self.out_proj(rearrange(context, 'b s h d -> b s (h d)')), attn_weights
+        # MODIFIED for training
+        # return my_func_mm_bc(rearrange(context, 'b s h d -> b s (h d)'), self.out_proj.weight, self.out_proj.bias), attn_weights
+        # return BitLinear()(rearrange(context, 'b s h d -> b s (h d)'), self.out_proj.weight, self.out_proj.bias), attn_weights
+        # return BitLinear_inference()(rearrange(context, 'b s h d -> b s (h d)'), self.out_proj.weight, self.out_proj.bias), attn_weights
 
 @ATTENTION.register_module()
 class MultiheadFlashAttention(BaseModule):

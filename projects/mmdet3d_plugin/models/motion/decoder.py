@@ -182,7 +182,9 @@ class HierarchicalPlanningDecoder(object):
                 det_anchors,
                 det_confidence,
             )
+        # MODIFIED fp16
         plan_cls_full[bs_indices, cmd] = plan_cls
+        # plan_cls_full[bs_indices.item(), cmd.item()] = plan_cls
         mode_idx = plan_cls.argmax(dim=-1)
         final_planning = plan_reg[bs_indices, mode_idx]
         return plan_cls_full, final_planning
@@ -208,6 +210,8 @@ class HierarchicalPlanningDecoder(object):
             return traj_cat
         
         def get_yaw(traj, start_yaw=np.pi/2):
+            # MODIFIED fix onnx err
+            # from tools.my_atan2 import my_atan2
             yaw = traj.new_zeros(traj.shape[:-1])
             yaw[..., 1:-1] = torch.atan2(
                 traj[..., 2:, 1] - traj[..., :-2, 1],
@@ -217,6 +221,14 @@ class HierarchicalPlanningDecoder(object):
                 traj[..., -1, 1] - traj[..., -2, 1],
                 traj[..., -1, 0] - traj[..., -2, 0],
             )
+            # yaw[..., 1:-1] = my_atan2(
+            #     traj[..., 2:, 1] - traj[..., :-2, 1],
+            #     traj[..., 2:, 0] - traj[..., :-2, 0],
+            # )
+            # yaw[..., -1] = my_atan2(
+            #     traj[..., -1, 1] - traj[..., -2, 1],
+            #     traj[..., -1, 0] - traj[..., -2, 0],
+            # )
             yaw[..., 0] = start_yaw
             # for static object, estimated future yaw would be unstable
             start = traj[..., 0, :]
@@ -249,14 +261,22 @@ class HierarchicalPlanningDecoder(object):
         motion_box = motion_reg.new_zeros(motion_reg.shape[:-1] + (7,))
         motion_box[..., [X, Y]] = motion_reg
         motion_box[..., [W, L, H]] = det_anchors[..., None, None, [W, L, H]].exp()
+        # MODIFIED fix onnx err
+        
         box_yaw = torch.atan2(
             det_anchors[..., SIN_YAW],
             det_anchors[..., COS_YAW],
         )
+        # box_yaw = my_atan2(
+        #     det_anchors[..., SIN_YAW],
+        #     det_anchors[..., COS_YAW],
+        # )
         motion_box[..., [YAW]] = get_yaw(motion_reg, box_yaw.unsqueeze(-1))
 
         filter_mask = det_confidence < score_thresh
+        # MODIFIED fp16
         motion_box[filter_mask] = 1e6
+        # motion_box[filter_mask] = 1e4
 
         ego_box = ego_box[..., 1:, :]
         motion_box = motion_box[..., 1:, :]

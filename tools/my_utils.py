@@ -139,7 +139,7 @@ def get_prediction(
 
     return pred_depth, output_dict
 
-def twoD_2_threeD2(x_2d, y_2d, z, intrinsic):  # input is a 2D point and depth value
+def twoD_2_threeD(x_2d, y_2d, z, intrinsic):  # input is a 2D point and depth value
     '''
     Given 2D points, a depth value, and an intrinsic camera matrix,
     outputs the 3D point coordinates.

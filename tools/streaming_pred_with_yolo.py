@@ -43,7 +43,7 @@ import json
 from mono.model.monodepth_model import get_configured_monodepth_model
 from mono.utils.running import load_ckpt
 from mono.utils.mldb import load_data_info, reset_ckpt_path
-from my_utils import transform_test_data_scalecano, get_prediction, twoD_2_threeD2, rotate_2d_point
+from my_utils import transform_test_data_scalecano, get_prediction, twoD_2_threeD, rotate_2d_point
 
 from ultralytics import YOLO
 
@@ -511,7 +511,7 @@ def main():
                     distance = pred_depths[int(y):int(y+h), int(x):int(x+w)].mean()
                     if distance < 5:
                         continue
-                    x, y, z = twoD_2_threeD2((x + w) // 2, y + h, distance / 1, cam_intrinsic)
+                    x, y, z = twoD_2_threeD((x + w) // 2, y + h, distance / 1, cam_intrinsic)
                     x, z = rotate_2d_point(x, z, -(np.pi / 180) * 20)
 
                     data_obj.append({'x' : x, 

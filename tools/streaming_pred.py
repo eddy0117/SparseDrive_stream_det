@@ -324,15 +324,15 @@ def main():
             img_metas = {'T_global' : ego_pose,
                     'T_global_inv' : ego_pose_inv,
                     'timestamp' : timestamp}
-            print('ego_pose', ego_pose)
+        
 
             input_data = {'img_metas': [[img_metas]],                      
                         'img': [torch.Tensor([img_arr]).to('cuda')],
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
                         'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),
-                        # 'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
-                        'ego_status' : torch.Tensor([np.array([0] * 10)]).to('cuda'),
+                        'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
+                        # 'ego_status' : torch.Tensor([np.array([0] * 10)]).to('cuda'),
                         'gt_ego_fut_cmd' : torch.Tensor([np.array([0, 0, 1])]).to('cuda')
                         }
             
@@ -478,7 +478,7 @@ def main():
 
             if IS_SERVER:
 
-                data_send += ('\0').encode('utf-8')
+                data_send += ('~').encode('utf-8')
                 print('send length : ',len(data_send))
 
                 for i in range(0, len(data_send), MAX_CHUNK_SIZE):

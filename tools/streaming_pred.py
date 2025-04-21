@@ -147,7 +147,7 @@ def main():
     # read can bus data
     nusc_can = NuScenesCanBus(dataroot='data')
     
-
+    
     
     for scene_name in scene_list:
 
@@ -193,12 +193,13 @@ def main():
 
             timestamp = sd_rec_l['timestamp'] / 1e6
 
-           
-
-            e2g_rotation = Quaternion(pose_record_l['rotation']).rotation_matrix
-            e2g_translation = pose_record_l['translation']
-            l2e_rotation = Quaternion(cs_record_l['rotation']).rotation_matrix
-            l2e_translation = cs_record_l['translation']
+            # Optimize tensor conversion using torch.as_tensor with unified device
+            device = torch.device("cuda")
+            e2g_rotation = torch.as_tensor(Quaternion(pose_record_l['rotation']).rotation_matrix, device=device).detach()
+            e2g_translation = torch.as_tensor(pose_record_l['translation'], device=device).detach()
+            l2e_rotation = torch.as_tensor(Quaternion(cs_record_l['rotation']).rotation_matrix, device=device).detach()
+            l2e_translation = torch.as_tensor(cs_record_l['translation'], device=device).detach()
+            
             e2g_matrix = convert_egopose_to_matrix_numpy(e2g_rotation, e2g_translation)
             l2e_matrix = convert_egopose_to_matrix_numpy(l2e_rotation, l2e_translation)
 
@@ -241,13 +242,12 @@ def main():
 
                 # cam
                 # cam to ego(car center)
-                c2e_t_s = np.array(cs_record_c['translation'])
+                c2e_t_s = torch.as_tensor(cs_record_c['translation'], device=device).detach()
                 c2e_r_s = np.array(cs_record_c['rotation'])
 
                 # cam to global
-                e2g_t_s = np.array(pose_record_c['translation']) 
+                e2g_t_s = torch.as_tensor(pose_record_c['translation'], device=device).detach()
                 e2g_r_s = np.array(pose_record_c['rotation'])
-
 
                 # l2e_r_mat = Quaternion(l2e_r).rotation_matrix
                 # e2g_r_mat = Quaternion(e2g_r).rotation_matrix
@@ -256,26 +256,25 @@ def main():
                 l2e_t = l2e_translation
                 e2g_t = e2g_translation
 
-                c2e_r_s_mat = Quaternion(c2e_r_s).rotation_matrix
-                e2g_r_s_mat = Quaternion(e2g_r_s).rotation_matrix
-
+                c2e_r_s_mat = torch.as_tensor(Quaternion(c2e_r_s).rotation_matrix, device=device).float().detach()
+                e2g_r_s_mat = torch.as_tensor(Quaternion(e2g_r_s).rotation_matrix, device=device).float().detach()
+                
                 R = (c2e_r_s_mat.T @ e2g_r_s_mat.T) @ (
-                        np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
+                        torch.linalg.inv(e2g_r_mat).float().T @ torch.linalg.inv(l2e_r_mat).float().T)
                 T = (c2e_t_s @ e2g_r_s_mat.T + e2g_t_s) @ (
-                    np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T)
-                T -= e2g_t @ (np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T
-                                ) + l2e_t @ np.linalg.inv(l2e_r_mat).T
+                    torch.linalg.inv(e2g_r_mat).float().T @ torch.linalg.inv(l2e_r_mat).float().T)
+                T -= e2g_t @ (torch.linalg.inv(e2g_r_mat).float().T @ torch.linalg.inv(l2e_r_mat).float().T
+                                ) + l2e_t @ torch.linalg.inv(l2e_r_mat).float().T
 
                 cam2lidar_r = R.T
                 cam2lidar_t = T
 
-
                 cam2lidar_rt = convert_egopose_to_matrix_numpy(cam2lidar_r, cam2lidar_t)
                 lidar2cam_rt = invert_matrix_egopose_numpy(cam2lidar_rt)
 
-                intrinsic = np.array(cs_record_c['camera_intrinsic'])
+                intrinsic = torch.as_tensor(cs_record_c['camera_intrinsic'], device=device).detach()
 
-                viewpad = np.eye(4)
+                viewpad = torch.eye(4).cuda()
                 viewpad[:intrinsic.shape[0], :intrinsic.shape[1]] = intrinsic
 
                 # lidar2img
@@ -302,7 +301,7 @@ def main():
                 
                 # lidar2img = intrinsic @ extrinsic
                 
-                lidar2img = mat @ lidar2img
+                lidar2img = torch.as_tensor(mat, device=device).float().detach() @ lidar2img
 
                 #===================================
     
@@ -315,11 +314,11 @@ def main():
                 extrinsic_arr.append(extrinsic)
                 lidar2img_arr.append(lidar2img)
                 filename_arr.append('data/nuscenes/' + sd_rec_c['filename'])
-                img_arr.append(torch.Tensor(img.transpose(2, 0, 1)).cuda())
+                img_arr.append(torch.as_tensor(img.transpose(2, 0, 1), device=device).float())
                 # print('preprocess time', time.time() - t0)
 
             img_arr = torch.stack(img_arr)
-            projection_mat = np.stack(lidar2img_arr)
+            projection_mat = torch.stack(lidar2img_arr)
             print('total image loading time', np.sum(img_load_time_arr), 'ms')
             img_metas = {'T_global' : ego_pose,
                     'T_global_inv' : ego_pose_inv,
@@ -329,7 +328,7 @@ def main():
             input_data = {'img_metas': [[img_metas]],                      
                         'img': [img_arr.unsqueeze(0)],
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
-                        'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
+                        'projection_mat' : [projection_mat.unsqueeze(0)],
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),
                         'ego_status' : torch.Tensor([np.array(ego_status)]).to('cuda'),
                         # 'ego_status' : torch.Tensor([np.array([0] * 10)]).to('cuda'),

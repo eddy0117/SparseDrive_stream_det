@@ -55,9 +55,9 @@ VERSION = 'v1.0-mini'
 IS_SWEEP = False
 
 # 是否將模型輸出透過TCP發送
-IS_SERVER = True
+IS_SERVER = False
 IS_MAP = True
-IS_TRAJ = True
+IS_TRAJ = False
 
 set_random_seed(42)
 
@@ -152,7 +152,7 @@ def main():
     for scene_name in scene_list:
 
         idx = 0
-
+        
         can_list = nusc_can.get_messages(scene_name ,'vehicle_monitor')
 
         scene = next(scene for scene in nusc.scene if scene['name'] == scene_name) 
@@ -168,7 +168,7 @@ def main():
            
 
             t0 = time.time()
-
+            img_load_time_arr = []
             intrinsic_arr = []
             extrinsic_arr = []
             lidar2img_arr = []
@@ -286,11 +286,11 @@ def main():
                 
                 
                 # LoadImage
-                
+                t1 = time.time()
                 img_name = 'data/nuscenes/' + sd_rec_c['filename']
                 img_ori = mmcv.imread(img_name, 'unchanged')
                 img_ori_arr.append(img_ori)
-                
+                img_load_time_arr.append(round((time.time() - t1) * 1000, 2))
                 # ResizeCropFlipRotImage class call
                 
                 # t0 = time.time()
@@ -315,19 +315,19 @@ def main():
                 extrinsic_arr.append(extrinsic)
                 lidar2img_arr.append(lidar2img)
                 filename_arr.append('data/nuscenes/' + sd_rec_c['filename'])
-                img_arr.append(img.transpose(2, 0, 1))
+                img_arr.append(torch.Tensor(img.transpose(2, 0, 1)).cuda())
                 # print('preprocess time', time.time() - t0)
 
-            img_arr = np.stack(img_arr)
+            img_arr = torch.stack(img_arr)
             projection_mat = np.stack(lidar2img_arr)
-
+            print('total image loading time', np.sum(img_load_time_arr), 'ms')
             img_metas = {'T_global' : ego_pose,
                     'T_global_inv' : ego_pose_inv,
                     'timestamp' : timestamp}
         
 
             input_data = {'img_metas': [[img_metas]],                      
-                        'img': [torch.Tensor([img_arr]).to('cuda')],
+                        'img': [img_arr.unsqueeze(0)],
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
                         'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),

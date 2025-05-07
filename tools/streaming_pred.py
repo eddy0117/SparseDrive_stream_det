@@ -61,6 +61,7 @@ IS_SWEEP = False
 IS_SERVER = True
 IS_MAP = True
 IS_TRAJ = False
+IS_TRAJ = False
 
 set_random_seed(42)
 
@@ -139,17 +140,17 @@ def main():
         model.PALETTE = checkpoint["meta"]["PALETTE"]
 
     model.eval()
-    model.img_backbone = torch_tensorrt.compile(model.img_backbone.half().cuda(), inputs = [torch_tensorrt.Input((6, 3, 256, 704), dtype=torch.half)],
-            enabled_precisions = {torch.half}, # Run with FP16
-            workspace_size = 1 << 22)
+    # model.img_backbone = torch_tensorrt.compile(model.img_backbone.half().cuda(), inputs = [torch_tensorrt.Input((6, 3, 256, 704), dtype=torch.half)],
+    #         enabled_precisions = {torch.half}, # Run with FP16
+    #         workspace_size = 1 << 22)
     
-    model.img_neck = torch_tensorrt.compile(model.img_neck.half().cuda(), inputs = 
-                                                ([torch_tensorrt.Input((6, 256, 64, 176), dtype=torch.half),
-                                                 torch_tensorrt.Input((6, 512, 32, 88), dtype=torch.half),
-                                                 torch_tensorrt.Input((6, 1024, 16, 44), dtype=torch.half),
-                                                 torch_tensorrt.Input((6, 2048, 8, 22), dtype=torch.half)]),
-            enabled_precisions = {torch.half}, # Run with FP16
-            workspace_size = 1 << 22)
+    # model.img_neck = torch_tensorrt.compile(model.img_neck.half().cuda(), inputs = 
+    #                                             ([torch_tensorrt.Input((6, 256, 64, 176), dtype=torch.half),
+    #                                              torch_tensorrt.Input((6, 512, 32, 88), dtype=torch.half),
+    #                                              torch_tensorrt.Input((6, 1024, 16, 44), dtype=torch.half),
+    #                                              torch_tensorrt.Input((6, 2048, 8, 22), dtype=torch.half)]),
+    #         enabled_precisions = {torch.half}, # Run with FP16
+    #         workspace_size = 1 << 22)
     
     model = MMDataParallel(model, device_ids=[0])
 
@@ -161,12 +162,12 @@ def main():
     # read can bus data
     nusc_can = NuScenesCanBus(dataroot='data')
     
-
+    
     
     for scene_name in scene_list:
 
         idx = 0
-
+        
         can_list = nusc_can.get_messages(scene_name ,'vehicle_monitor')
 
         scene = next(scene for scene in nusc.scene if scene['name'] == scene_name) 
@@ -182,7 +183,7 @@ def main():
            
 
             t0 = time.time()
-
+            img_load_time_arr = []
             intrinsic_arr = []
             extrinsic_arr = []
             lidar2img_arr = []
@@ -207,8 +208,6 @@ def main():
 
             timestamp = sd_rec_l['timestamp'] / 1e6
 
-           
-
             e2g_rotation = Quaternion(pose_record_l['rotation']).rotation_matrix
             e2g_translation = pose_record_l['translation']
             l2e_rotation = Quaternion(cs_record_l['rotation']).rotation_matrix
@@ -231,7 +230,7 @@ def main():
                     cam_token = sample['data'][cam]
                     # cam_token_dict[cam] = sample['data'][cam]
 
-                   
+                    # 使用 token 获取 sample_data 记录
                     sd_rec_c = nusc.get('sample_data', cam_token)
                     sd_rec_c_dict[cam] = sd_rec_c
 
@@ -240,7 +239,7 @@ def main():
                     sd_rec_c = nusc.get('sample_data', sd_rec_c_dict[cam]['next'])
                     sd_rec_c_dict[cam] = sd_rec_c
 
-                
+                # 获取摄像头的校准数据
                 cs_record_c = nusc.get('calibrated_sensor', sd_rec_c['calibrated_sensor_token'])
 
                 pose_record_c = nusc.get('ego_pose', sd_rec_c['ego_pose_token'])
@@ -300,11 +299,11 @@ def main():
                 
                 
                 # LoadImage
-                
+                t1 = time.time()
                 img_name = 'data/nuscenes/' + sd_rec_c['filename']
                 img_ori = mmcv.imread(img_name, 'unchanged')
                 img_ori_arr.append(img_ori)
-                
+                img_load_time_arr.append(round((time.time() - t1) * 1000, 2))
                 # ResizeCropFlipRotImage class call
                 
                 # t0 = time.time()

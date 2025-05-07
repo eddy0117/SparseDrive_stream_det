@@ -40,6 +40,9 @@ import os
 import socket
 import json
 
+import torch_tensorrt
+
+
 MAX_CHUNK_SIZE = 5000
 
 CLASS = ['car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier', 'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone']
@@ -57,7 +60,7 @@ IS_SWEEP = False
 # 是否將模型輸出透過TCP發送
 IS_SERVER = True
 IS_MAP = True
-IS_TRAJ = True
+IS_TRAJ = False
 
 set_random_seed(42)
 
@@ -135,8 +138,19 @@ def main():
     if "PALETTE" in checkpoint.get("meta", {}):
         model.PALETTE = checkpoint["meta"]["PALETTE"]
 
-
-
+    model.eval()
+    model.img_backbone = torch_tensorrt.compile(model.img_backbone.half().cuda(), inputs = [torch_tensorrt.Input((6, 3, 256, 704), dtype=torch.half)],
+            enabled_precisions = {torch.half}, # Run with FP16
+            workspace_size = 1 << 22)
+    
+    model.img_neck = torch_tensorrt.compile(model.img_neck.half().cuda(), inputs = 
+                                                ([torch_tensorrt.Input((6, 256, 64, 176), dtype=torch.half),
+                                                 torch_tensorrt.Input((6, 512, 32, 88), dtype=torch.half),
+                                                 torch_tensorrt.Input((6, 1024, 16, 44), dtype=torch.half),
+                                                 torch_tensorrt.Input((6, 2048, 8, 22), dtype=torch.half)]),
+            enabled_precisions = {torch.half}, # Run with FP16
+            workspace_size = 1 << 22)
+    
     model = MMDataParallel(model, device_ids=[0])
 
 
@@ -217,7 +231,7 @@ def main():
                     cam_token = sample['data'][cam]
                     # cam_token_dict[cam] = sample['data'][cam]
 
-                    # 使用 token 获取 sample_data 记录
+                   
                     sd_rec_c = nusc.get('sample_data', cam_token)
                     sd_rec_c_dict[cam] = sd_rec_c
 
@@ -226,7 +240,7 @@ def main():
                     sd_rec_c = nusc.get('sample_data', sd_rec_c_dict[cam]['next'])
                     sd_rec_c_dict[cam] = sd_rec_c
 
-                # 获取摄像头的校准数据
+                
                 cs_record_c = nusc.get('calibrated_sensor', sd_rec_c['calibrated_sensor_token'])
 
                 pose_record_c = nusc.get('ego_pose', sd_rec_c['ego_pose_token'])
@@ -315,10 +329,10 @@ def main():
                 extrinsic_arr.append(extrinsic)
                 lidar2img_arr.append(lidar2img)
                 filename_arr.append('data/nuscenes/' + sd_rec_c['filename'])
-                img_arr.append(img.transpose(2, 0, 1))
+                img_arr.append(torch.from_numpy(img.transpose(2, 0, 1)).cuda())
                 # print('preprocess time', time.time() - t0)
-
-            img_arr = np.stack(img_arr)
+           
+            img_arr = torch.stack(img_arr)
             projection_mat = np.stack(lidar2img_arr)
 
             img_metas = {'T_global' : ego_pose,
@@ -327,7 +341,7 @@ def main():
         
 
             input_data = {'img_metas': [[img_metas]],                      
-                        'img': [torch.Tensor([img_arr]).to('cuda')],
+                        'img': [img_arr.unsqueeze(0)],
                         'timestamp' : torch.Tensor([timestamp]).to('cuda'),
                         'projection_mat' : torch.Tensor([projection_mat]).to('cuda'),
                         'image_wh' : torch.Tensor([[[704, 256] for _ in range(6)]]).to('cuda'),
@@ -338,7 +352,7 @@ def main():
             
             prepro_time = round((time.time() - t0) * 1000, 2)
             t0 = time.time()
-
+            
             with torch.no_grad():
                 output = model(return_loss=False, rescale=True, **input_data)
             
@@ -347,7 +361,7 @@ def main():
             infer_time = round((time.time() - t0) * 1000, 2)
             infer_time_arr.append(infer_time)
             # =============== 模型結果送到 GUI 的資料處理 ================
-
+            torch.cuda.synchronize()
             t0 = time.time()
             data_obj = []
             data_dot = []

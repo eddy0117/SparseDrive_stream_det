@@ -1,6 +1,6 @@
 from torch import nn, Tensor
 import torch.nn.functional as F
-from torch_ext_test import my_func_mm_bc_add
+# from torch_ext_test import my_func_mm_bc_add
 
 class SimpleRMSNorm(nn.Module):
     """

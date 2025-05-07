@@ -15,7 +15,7 @@ import torch.utils.checkpoint as cp
 
 # MODIFIED
 import torch
-from torch_ext_test import my_func_mm_bc, my_func_mm_qkv
+# from torch_ext_test import my_func_mm_bc, my_func_mm_qkv
 from projects.mmdet3d_plugin.models.my_linear.bitnet import BitLinear
 from projects.mmdet3d_plugin.models.my_linear.bitnet_inference import BitLinear_inference
 

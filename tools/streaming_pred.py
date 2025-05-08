@@ -144,6 +144,12 @@ def main():
     #         enabled_precisions = {torch.half}, # Run with FP16
     #         workspace_size = 1 << 22)
     
+    # torch_tensorrt.save(model.img_backbone, 'img_backbone_trt.ep', inputs=[torch.randn((6, 3, 256, 704), dtype=torch.half).cuda()])
+    model.eval()
+
+    model.img_backbone = torch.export.load('img_backbone_trt.ep').module().cuda()
+    model.img_neck = torch.export.load('img_neck_trt.ep').module().cuda()
+
     # model.img_neck = torch_tensorrt.compile(model.img_neck.half().cuda(), inputs = 
     #                                             ([torch_tensorrt.Input((6, 256, 64, 176), dtype=torch.half),
     #                                              torch_tensorrt.Input((6, 512, 32, 88), dtype=torch.half),
@@ -152,11 +158,11 @@ def main():
     #         enabled_precisions = {torch.half}, # Run with FP16
     #         workspace_size = 1 << 22)
     
+
     model = MMDataParallel(model, device_ids=[0])
 
 
-    model.eval()
-
+    
     nusc = NuScenes(version=VERSION, dataroot='data/nuscenes/', verbose=True)
     
     # read can bus data

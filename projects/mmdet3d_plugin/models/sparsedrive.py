@@ -133,17 +133,17 @@ class SparseDrive(BaseDetector):
         # data.pop('rescale')
         
         import time
-        t0 = time.time()
+        # t0 = time.time()
         feature_maps = self.extract_feat(img)
-        ext_time = round((time.time() - t0) * 1000, 2)
-        t0 = time.time()
+        # ext_time = round((time.time() - t0) * 1000, 2)
+        # t0 = time.time()
         model_outs = self.head(feature_maps, data)
-        head_time = round((time.time() - t0) * 1000, 2)
-        t0 = time.time()
+        # head_time = round((time.time() - t0) * 1000, 2)
+        # t0 = time.time()
         results = self.head.post_process(model_outs, data)
-        post_time = round((time.time() - t0) * 1000, 2)
+        # post_time = round((time.time() - t0) * 1000, 2)
         output = [{"img_bbox": result} for result in results]
-        print(f"ext_time: {ext_time}ms, head_time: {head_time}ms, post_time: {post_time}ms")
+        # print(f"ext_time: {ext_time}ms, head_time: {head_time}ms, post_time: {post_time}ms")
         return output
 
     def aug_test(self, img, **data):

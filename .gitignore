@@ -8,7 +8,7 @@
 *.gif
 *.ep
 data/
-ckpt/
+ckpts/
 work_dirs*/
 dist_test/
 vis/

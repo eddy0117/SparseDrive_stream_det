@@ -6,6 +6,7 @@
 *.jpg
 *.jpeg
 *.gif
+*.ep
 data/
 ckpt/
 work_dirs*/

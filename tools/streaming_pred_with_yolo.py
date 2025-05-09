@@ -89,13 +89,13 @@ def main():
     mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
 
-    scene_list = ['scene-0103', 'scene-0916']
+    # scene_list = ['scene-0103', 'scene-0916']
     # scene_list = ['scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016']
     
     
-    # scene_list = ['scene-1094', 'scene-1100']
-    scene_list = ['scene-0061', 'scene-0553', 'scene-0655', 'scene-0757', 'scene-0796', 'scene-1077', 'scene-1094', 'scene-1100']
 
+    scene_list = ['scene-0061', 'scene-0553', 'scene-0655', 'scene-0757', 'scene-0796', 'scene-1077', 'scene-1094', 'scene-1100']
+    scene_list = ["scene-0553", "scene-0655"]
     # scene_list = ['scene-0003', 'scene-0012', 'scene-0013', 'scene-0014', 'scene-0015', 'scene-0016', 'scene-0017', 'scene-0018',
     #  'scene-0035', 'scene-0036', 'scene-0038', 'scene-0039', 'scene-0092', 'scene-0093', 'scene-0094', 'scene-0095',]
     cams = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT']
@@ -204,6 +204,7 @@ def main():
     cfg = Config.fromfile(config_path_depth)
     cfg.load_from = checkpoint_path_depth
 
+    tmp_filename = ""
 
     # load data info
     data_info = {}
@@ -365,6 +366,10 @@ def main():
                 img_name = 'data/nuscenes/' + sd_rec_c['filename']
                 img_ori = mmcv.imread(img_name, 'unchanged')
                 img_ori_arr.append(img_ori)
+
+                # for yolo img
+                if cam == "CAM_FRONT":
+                    tmp_filename = sd_rec_c['filename']
                 
                 # ResizeCropFlipRotImage class call
                 
@@ -432,6 +437,9 @@ def main():
             pred_depths = pred_depths[0].permute(1, 2, 0).repeat(1, 1, 3).cpu().numpy()
             pred_depths = cv2.resize(pred_depths, (rgb_origin.shape[1], rgb_origin.shape[0]), interpolation=cv2.INTER_LINEAR)
             
+            # save
+            # cv2.imwrite("vis/depth/" + tmp_filename.split('/')[-1], pred_depths)
+
             print('inference time', time.time() - t0)
 
             # =============== 模型結果送到 GUI 的資料處理 ================
@@ -499,27 +507,40 @@ def main():
                                  'is_stop' : is_stop})
                 
             # 處裡 yolo bbox
-            for box_xyxy, cls in zip(yolo_result[0].boxes.xyxy, yolo_result[0].boxes.cls):
+            rgb_origin = cv2.cvtColor(rgb_origin, cv2.COLOR_BGR2RGB)
+            for box_xyxy, cls, conf in zip(yolo_result[0].boxes.xyxy, yolo_result[0].boxes.cls, yolo_result[0].boxes.conf):
 
                 if int(cls) == 9:
-            
+      
                     x = int(box_xyxy[0])
                     y = int(box_xyxy[1])
                     w = int(box_xyxy[2] - box_xyxy[0])
                     h = int(box_xyxy[3] - box_xyxy[1])
-
+                    
                     distance = pred_depths[int(y):int(y+h), int(x):int(x+w)].mean()
                     if distance < 5:
                         continue
-                    x, y, z = twoD_2_threeD((x + w) // 2, y + h, distance / 1, cam_intrinsic)
+
+                    # draw bbox to img
+                    rgb_origin = cv2.rectangle(rgb_origin, (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 3)
+                    pred_depths = cv2.putText(pred_depths, str(int(distance)), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                    pred_depths = cv2.rectangle(pred_depths, (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 3)
+
+                    
+                    x, y, z = twoD_2_threeD((x + w) // 2, y + h, distance / 1.2, cam_intrinsic)
                     x, z = rotate_2d_point(x, z, -(np.pi / 180) * 20)
 
-                    data_obj.append({'x' : x, 
-                                     'y' : z, 
-                                     'cls' : 'traffic_light', 
-                                     'ang' : 270,
-                                     "is_stop": 0,})
-                
+                    data_obj.append({'x' : x * 5 / 682, 
+                                    'y' : - z * 5 / 682, 
+                                    'cls' : 'traffic_light', 
+                                    'ang' : 270,
+                                    "is_stop": 0,})
+                    
+                    
+                   
+            
+            # cv2.imwrite("vis/yolo_depth/" + tmp_filename.split('/')[-1], pred_depths)
+            # cv2.imwrite("vis/yolo/" + tmp_filename.split('/')[-1], rgb_origin) 
             # 處理 vector map
             
             for i in range(result['scores'].shape[0]):
@@ -582,7 +603,7 @@ def main():
 
             if IS_SERVER:
 
-                data_send += ('\0').encode('utf-8')
+                data_send += ('~').encode('utf-8')
                 print('send length : ',len(data_send))
 
                 for i in range(0, len(data_send), MAX_CHUNK_SIZE):

@@ -23,6 +23,8 @@ except:
 
 __all__ = ["SparseDrive"]
 
+# import torch_tensorrt
+from .my_models.fpn import FPN
 
 @DETECTORS.register_module()
 class SparseDrive(BaseDetector):
@@ -44,7 +46,9 @@ class SparseDrive(BaseDetector):
             backbone.pretrained = pretrained
         self.img_backbone = build_backbone(img_backbone)
         if img_neck is not None:
-            self.img_neck = build_neck(img_neck)
+            # self.img_neck = build_neck(img_neck)
+            img_neck.pop("type")
+            self.img_neck = FPN(**img_neck)
         self.head = build_head(head)
         self.use_grid_mask = use_grid_mask
         if use_deformable_func:
@@ -58,6 +62,11 @@ class SparseDrive(BaseDetector):
             self.grid_mask = GridMask(
                 True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7
             ) 
+        import copy
+        self.img_backbone.eval()
+        self.inference_stream = torch.cuda.Stream()
+        # self.img_backbone_ori = copy.deepcopy(self.img_backbone)
+        
 
     @auto_fp16(apply_to=("img",), out_fp32=True)
     def extract_feat(self, img, return_depth=False, metas=None):
@@ -69,12 +78,14 @@ class SparseDrive(BaseDetector):
             num_cams = 1
         if self.use_grid_mask:
             img = self.grid_mask(img)
-        if "metas" in signature(self.img_backbone.forward).parameters:
-            feature_maps = self.img_backbone(img, num_cams, metas=metas)
-        else:
-            feature_maps = self.img_backbone(img)
+
+        # with torch.cuda.stream(self.inference_stream):
+        #     img = img.half().cuda(non_blocking=True)
+        feature_maps = self.img_backbone(img)
+        # self.inference_stream.synchronize()
+
         if self.img_neck is not None:
-            feature_maps = list(self.img_neck(feature_maps))
+            feature_maps = list(self.img_neck(*feature_maps))
         for i, feat in enumerate(feature_maps):
             feature_maps[i] = torch.reshape(
                 feat, (bs, num_cams) + feat.shape[1:]

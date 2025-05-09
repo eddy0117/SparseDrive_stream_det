@@ -58,9 +58,8 @@ IS_SWEEP = False
 IS_TENSORRT = True
 
 # 是否將模型輸出透過TCP發送
-IS_SERVER = True
+IS_SERVER = False
 IS_MAP = True
-IS_TRAJ = False
 IS_TRAJ = False
 
 set_random_seed(42)

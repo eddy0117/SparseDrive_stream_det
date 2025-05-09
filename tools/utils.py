@@ -173,7 +173,7 @@ def render( box,
     #             color=colors[0], linewidth=linewidth)
 
 def convert_egopose_to_matrix_numpy(rotation, translation):
-    transformation_matrix = np.zeros((4, 4), dtype=np.float32)
+    transformation_matrix = torch.zeros((4, 4), dtype=torch.float32).cuda()
     transformation_matrix[:3, :3] = rotation
     transformation_matrix[:3, 3] = translation
     transformation_matrix[3, 3] = 1.0
@@ -181,11 +181,11 @@ def convert_egopose_to_matrix_numpy(rotation, translation):
 
 def invert_matrix_egopose_numpy(egopose):
     """ Compute the inverse transformation of a 4x4 egopose numpy matrix."""
-    inverse_matrix = np.zeros((4, 4), dtype=np.float32)
+    inverse_matrix = torch.zeros((4, 4), dtype=torch.float32).cuda()
     rotation = egopose[:3, :3]
     translation = egopose[:3, 3]
     inverse_matrix[:3, :3] = rotation.T
-    inverse_matrix[:3, 3] = -np.dot(rotation.T, translation)
+    inverse_matrix[:3, 3] = -(rotation.T @ translation)
     inverse_matrix[3, 3] = 1.0
     return inverse_matrix
 

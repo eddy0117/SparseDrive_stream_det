@@ -99,7 +99,7 @@ class InstanceBank(nn.Module):
             if self.anchor_handler is not None:
                 # MODIFIED fix onnx err
                 T_temp2cur = self.cached_anchor.new_tensor(
-                    np.stack(
+                    torch.stack(
                         [
                             x["T_global_inv"]
                             @ self.metas["img_metas"][i]["T_global"]

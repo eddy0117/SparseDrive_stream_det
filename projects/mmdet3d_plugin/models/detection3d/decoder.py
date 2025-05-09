@@ -6,7 +6,7 @@ from mmdet.core.bbox.builder import BBOX_CODERS
 
 from projects.mmdet3d_plugin.core.box3d import *
 # MODIFIED fix onnx err
-from tools.my_atan2 import my_atan2
+# from tools.my_atan2 import my_atan2
 def decode_box(box):
     yaw = torch.atan2(box[..., SIN_YAW], box[..., COS_YAW])
     # yaw = my_atan2(box[..., SIN_YAW], box[..., COS_YAW])

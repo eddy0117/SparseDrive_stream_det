@@ -23,7 +23,7 @@ except:
 
 __all__ = ["SparseDrive"]
 
-import torch_tensorrt
+# import torch_tensorrt
 from .my_models.fpn import FPN
 
 @DETECTORS.register_module()
@@ -64,6 +64,7 @@ class SparseDrive(BaseDetector):
             ) 
         import copy
         self.img_backbone.eval()
+        self.inference_stream = torch.cuda.Stream()
         # self.img_backbone_ori = copy.deepcopy(self.img_backbone)
         
 
@@ -77,13 +78,11 @@ class SparseDrive(BaseDetector):
             num_cams = 1
         if self.use_grid_mask:
             img = self.grid_mask(img)
-        # if "metas" in signature(self.img_backbone.forward).parameters:
-        #     feature_maps = self.img_backbone(img, num_cams, metas=metas)
-        # else:
-            # feature_maps = self.img_backbone(img)
-            # feat_tmp = self.img_backbone_ori(img)
+
+        # with torch.cuda.stream(self.inference_stream):
+        #     img = img.half().cuda(non_blocking=True)
         feature_maps = self.img_backbone(img)
-        # feat_tmp = self.img_backbone_ori(img)
+        # self.inference_stream.synchronize()
 
         if self.img_neck is not None:
             feature_maps = list(self.img_neck(*feature_maps))

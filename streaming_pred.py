@@ -55,7 +55,7 @@ MAP_SCORE_THRESH = 0.3
 VERSION = 'v1.0-mini'
 
 IS_SWEEP = False
-IS_TENSORRT = False
+IS_TENSORRT = True
 
 # 是否將模型輸出透過TCP發送
 IS_SERVER = True
@@ -131,7 +131,7 @@ def main():
                         workspace_size = 1 << 22,
                         make_refitable=True)
         
-                torch_tensorrt.save(model.img_backbone, 'img_backbone_trt.ep', inputs=[torch.randn((6, 3, 256, 704), dtype=torch.half).cuda()])
+                torch_tensorrt.save(model.img_backbone, backbone_path, inputs=[torch.randn((6, 3, 256, 704), dtype=torch.half).cuda()])
     
             else:
                 model.img_backbone = torch.export.load(os.path.join('ckpts', 'img_backbone_trt.ep')).module().cuda()
@@ -146,7 +146,7 @@ def main():
                         enabled_precisions = {torch.half}, # Run with FP16
                         workspace_size = 1 << 22,
                         make_refitable=True)
-                torch_tensorrt.save(model.img_neck, 'img_neck_trt.ep', inputs=[torch.randn((6, 256, 64, 176), dtype=torch.half).cuda(),
+                torch_tensorrt.save(model.img_neck, neck_path, inputs=[torch.randn((6, 256, 64, 176), dtype=torch.half).cuda(),
                                                                             torch.randn((6, 512, 32, 88), dtype=torch.half).cuda(),
                                                                             torch.randn((6, 1024, 16, 44), dtype=torch.half).cuda(),
                                                                             torch.randn((6, 2048, 8, 22), dtype=torch.half).cuda()])
